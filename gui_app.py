@@ -89,6 +89,9 @@ class TelegramScraperGUI:
         self.broadcast_attachments: list[str] = []
         self.broadcast_log_lines: list[str] = []
 
+        self.grup_scrapper_results: list[dict] = []
+        self._grup_scrapper_index_by_iid: dict[str, dict] = {}
+
         self._build_ui()
         self._refresh_sessions_view()
 
@@ -164,6 +167,33 @@ class TelegramScraperGUI:
         style.configure("TNotebook", background=c["bg"], borderwidth=0)
         style.configure("TNotebook.Tab", background=c["panel_2"], foreground=c["muted"], padding=(14, 8), font=("Segoe UI Semibold", 10))
         style.map("TNotebook.Tab", background=[("selected", c["accent"]), ("active", c["panel"])], foreground=[("selected", "#0f1722"), ("active", c["text"])])
+
+        style.configure(
+            "Treeview",
+            background=c["panel_2"],
+            fieldbackground=c["panel_2"],
+            foreground=c["text"],
+            bordercolor=c["border"],
+            borderwidth=0,
+            rowheight=24,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Treeview.Heading",
+            background=c["panel"],
+            foreground=c["text"],
+            font=("Segoe UI Semibold", 10),
+            relief="flat",
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", c["accent"])],
+            foreground=[("selected", "#0f1722")],
+        )
+        style.map(
+            "Treeview.Heading",
+            background=[("active", c["panel_2"])],
+        )
 
         self._refresh_manual_widget_theme()
 
@@ -263,6 +293,7 @@ class TelegramScraperGUI:
 
         login_tab, self.tab_login = self._create_scrollable_tab(notebook)
         scrape_tab, self.tab_scrape = self._create_scrollable_tab(notebook)
+        grup_scrapper_tab, self.tab_grup_scrapper = self._create_scrollable_tab(notebook)
         add_tab, self.tab_add = self._create_scrollable_tab(notebook)
         broadcast_tab, self.tab_broadcast = self._create_scrollable_tab(notebook)
         sessions_tab, self.tab_sessions = self._create_scrollable_tab(notebook)
@@ -270,6 +301,7 @@ class TelegramScraperGUI:
 
         notebook.add(login_tab, text="Login")
         notebook.add(scrape_tab, text="Members Scraper")
+        notebook.add(grup_scrapper_tab, text="Grup Scrapper")
         notebook.add(add_tab, text="Members Adder")
         notebook.add(broadcast_tab, text="Broadcast")
         notebook.add(sessions_tab, text="Sessions")
@@ -277,6 +309,7 @@ class TelegramScraperGUI:
 
         self._build_login_tab()
         self._build_scrape_tab()
+        self._build_grup_scrapper_tab()
         self._build_add_tab()
         self._build_broadcast_tab()
         self._build_sessions_tab()
@@ -439,6 +472,139 @@ class TelegramScraperGUI:
         self.add_target.grid(row=3, column=1, sticky="w", padx=8)
 
         ttk.Button(frm, text="Run Adder", style="Accent.TButton", command=self._run_adder).grid(row=4, column=1, sticky="w", padx=8, pady=8)
+
+    def _build_grup_scrapper_tab(self) -> None:
+        frm = self.tab_grup_scrapper
+
+        frm.grid_columnconfigure(1, weight=1)
+        frm.grid_columnconfigure(2, weight=0)
+        frm.grid_columnconfigure(3, weight=0)
+
+        ttk.Label(frm, text="Grup Scrapper", font=("Segoe UI", 11, "bold")).grid(
+            row=0, column=0, sticky="w", pady=(0, 4)
+        )
+        ttk.Label(
+            frm,
+            text="Cari grup/channel publik berdasarkan keyword niche, lalu join sekaligus.",
+            style="Muted.TLabel",
+        ).grid(row=0, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 4))
+
+        ttk.Label(frm, text="Keyword niche").grid(row=1, column=0, sticky="w")
+        self.grup_scrapper_query = ttk.Entry(frm, width=48)
+        self.grup_scrapper_query.grid(row=1, column=1, columnspan=3, sticky="ew", padx=8, pady=2)
+        self.grup_scrapper_query.bind("<Return>", lambda _e: self._run_grup_scrapper_search())
+
+        ttk.Label(frm, text="Encryption Password").grid(row=2, column=0, sticky="w")
+        self.grup_scrapper_password = ttk.Entry(frm, show="*", width=32)
+        self.grup_scrapper_password.grid(row=2, column=1, sticky="w", padx=8, pady=2)
+
+        ttk.Label(frm, text="Tipe").grid(row=3, column=0, sticky="w")
+        self.grup_scrapper_type = ttk.Combobox(
+            frm,
+            width=28,
+            state="readonly",
+            values=["Semua (Group + Channel)", "Group/Supergroup saja", "Channel saja"],
+        )
+        self.grup_scrapper_type.set("Semua (Group + Channel)")
+        self.grup_scrapper_type.grid(row=3, column=1, sticky="w", padx=8, pady=2)
+
+        ttk.Label(frm, text="Limit hasil").grid(row=3, column=2, sticky="e", padx=(8, 4))
+        self.grup_scrapper_limit = ttk.Entry(frm, width=8)
+        self.grup_scrapper_limit.insert(0, "50")
+        self.grup_scrapper_limit.grid(row=3, column=3, sticky="w")
+
+        ttk.Label(frm, text="Delay join random (sec)").grid(row=4, column=0, sticky="w")
+        delay_wrap = ttk.Frame(frm)
+        delay_wrap.grid(row=4, column=1, sticky="w", padx=8, pady=2)
+        self.grup_scrapper_delay_min = ttk.Entry(delay_wrap, width=5)
+        self.grup_scrapper_delay_min.insert(0, "5")
+        self.grup_scrapper_delay_min.pack(side=tk.LEFT)
+        ttk.Label(delay_wrap, text="to").pack(side=tk.LEFT, padx=4)
+        self.grup_scrapper_delay_max = ttk.Entry(delay_wrap, width=5)
+        self.grup_scrapper_delay_max.insert(0, "15")
+        self.grup_scrapper_delay_max.pack(side=tk.LEFT)
+
+        self.grup_scrapper_skip_scam = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            frm,
+            text="Skip grup/channel berlabel scam/fake saat Join",
+            variable=self.grup_scrapper_skip_scam,
+        ).grid(row=4, column=2, columnspan=2, sticky="w", padx=4)
+
+        actions = ttk.Frame(frm)
+        actions.grid(row=5, column=0, columnspan=4, sticky="w", pady=(8, 4))
+        ttk.Button(
+            actions, text="Cari Grup", style="Accent.TButton", command=self._run_grup_scrapper_search
+        ).pack(side=tk.LEFT)
+        ttk.Button(
+            actions,
+            text="Fetch Member Counts",
+            command=self._fetch_grup_scrapper_stats,
+        ).pack(side=tk.LEFT, padx=6)
+        ttk.Button(
+            actions,
+            text="Join Selected",
+            style="Accent.TButton",
+            command=lambda: self._run_grup_scrapper_join(only_selected=True),
+        ).pack(side=tk.LEFT, padx=6)
+        ttk.Button(
+            actions,
+            text="Join All",
+            command=lambda: self._run_grup_scrapper_join(only_selected=False),
+        ).pack(side=tk.LEFT, padx=6)
+        ttk.Button(actions, text="Export CSV", command=self._export_grup_scrapper_csv).pack(
+            side=tk.LEFT, padx=6
+        )
+        ttk.Button(actions, text="Clear", command=self._clear_grup_scrapper_results).pack(
+            side=tk.LEFT, padx=6
+        )
+
+        tree_wrap = ttk.Frame(frm)
+        tree_wrap.grid(row=6, column=0, columnspan=4, sticky="nsew", pady=(6, 4))
+        frm.grid_rowconfigure(6, weight=1)
+
+        columns = ("title", "type", "username", "members", "status")
+        self.grup_scrapper_tree = ttk.Treeview(
+            tree_wrap,
+            columns=columns,
+            show="headings",
+            selectmode="extended",
+            height=14,
+        )
+        self.grup_scrapper_tree.heading("title", text="Judul")
+        self.grup_scrapper_tree.heading("type", text="Tipe")
+        self.grup_scrapper_tree.heading("username", text="Username/Link")
+        self.grup_scrapper_tree.heading("members", text="Members")
+        self.grup_scrapper_tree.heading("status", text="Status")
+        self.grup_scrapper_tree.column("title", width=340, anchor="w")
+        self.grup_scrapper_tree.column("type", width=110, anchor="center")
+        self.grup_scrapper_tree.column("username", width=200, anchor="w")
+        self.grup_scrapper_tree.column("members", width=90, anchor="e")
+        self.grup_scrapper_tree.column("status", width=140, anchor="center")
+        self.grup_scrapper_tree.bind("<Double-Button-1>", self._on_grup_scrapper_row_double_click)
+
+        v_scroll = ttk.Scrollbar(tree_wrap, orient=tk.VERTICAL, command=self.grup_scrapper_tree.yview)
+        self.grup_scrapper_tree.configure(yscrollcommand=v_scroll.set)
+        self.grup_scrapper_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.grup_scrapper_stats_var = tk.StringVar(value="Hasil: 0")
+        ttk.Label(
+            frm,
+            textvariable=self.grup_scrapper_stats_var,
+            style="Muted.TLabel",
+        ).grid(row=7, column=0, columnspan=4, sticky="w", pady=(2, 0))
+
+        ttk.Label(
+            frm,
+            text=(
+                "Tip: Telegram membatasi hasil global search ~10–50 per query, jadi pakai keyword spesifik. "
+                "Double-click baris untuk salin link ke clipboard."
+            ),
+            style="Muted.TLabel",
+            wraplength=900,
+            justify=tk.LEFT,
+        ).grid(row=8, column=0, columnspan=4, sticky="w", pady=(2, 0))
 
     def _build_broadcast_tab(self) -> None:
         frm = self.tab_broadcast
@@ -1504,6 +1670,372 @@ class TelegramScraperGUI:
             self._post(lambda: self._log(f"Adder selesai. added={added}, skipped={skipped}"))
 
         self._run_async_job(_job())
+
+    @staticmethod
+    def _classify_grup_scrapper_chat(ch) -> str | None:
+        cls_name = type(ch).__name__
+        if cls_name in {"ChatForbidden", "ChannelForbidden"}:
+            return None
+        if cls_name == "Chat":
+            return "group"
+        if getattr(ch, "megagroup", False):
+            return "group"
+        if getattr(ch, "broadcast", False):
+            return "channel"
+        return None
+
+    def _grup_scrapper_row_values(self, r: dict) -> tuple:
+        title = r.get("title", "") or "(no title)"
+        markers = []
+        if r.get("verified"):
+            markers.append("[v]")
+        if r.get("scam"):
+            markers.append("[!scam]")
+        if markers:
+            title = " ".join(markers) + " " + title
+
+        type_text = {
+            "group": "Group",
+            "channel": "Channel",
+        }.get(r.get("type"), "Other")
+
+        username = (r.get("username") or "").strip()
+        username_text = f"@{username}" if username else "(private/no username)"
+
+        members = r.get("members")
+        if isinstance(members, int) and members >= 0:
+            members_text = f"{members:,}"
+        else:
+            members_text = "?"
+
+        return (title, type_text, username_text, members_text, r.get("status", ""))
+
+    def _set_grup_scrapper_results(self, rows: list[dict], used_phone: str, query: str) -> None:
+        self.grup_scrapper_results = rows
+        self.grup_scrapper_tree.delete(*self.grup_scrapper_tree.get_children())
+        self._grup_scrapper_index_by_iid = {}
+        for r in rows:
+            iid = self.grup_scrapper_tree.insert("", tk.END, values=self._grup_scrapper_row_values(r))
+            r["_iid"] = iid
+            self._grup_scrapper_index_by_iid[iid] = r
+
+        joined = sum(1 for r in rows if r.get("joined"))
+        groups = sum(1 for r in rows if r.get("type") == "group")
+        channels = sum(1 for r in rows if r.get("type") == "channel")
+        self.grup_scrapper_stats_var.set(
+            f"Hasil: {len(rows)} (group={groups}, channel={channels}, joined={joined}) "
+            f"via {used_phone}, query='{query}'"
+        )
+
+    def _refresh_grup_scrapper_row(self, r: dict) -> None:
+        iid = r.get("_iid")
+        if iid and self.grup_scrapper_tree.exists(iid):
+            self.grup_scrapper_tree.item(iid, values=self._grup_scrapper_row_values(r))
+
+    def _clear_grup_scrapper_results(self) -> None:
+        self.grup_scrapper_results = []
+        self._grup_scrapper_index_by_iid = {}
+        if hasattr(self, "grup_scrapper_tree"):
+            self.grup_scrapper_tree.delete(*self.grup_scrapper_tree.get_children())
+        if hasattr(self, "grup_scrapper_stats_var"):
+            self.grup_scrapper_stats_var.set("Hasil: 0")
+
+    def _on_grup_scrapper_row_double_click(self, _event=None) -> None:
+        sel = self.grup_scrapper_tree.selection()
+        if not sel:
+            return
+        item = self._grup_scrapper_index_by_iid.get(sel[0])
+        if not item:
+            return
+        username = (item.get("username") or "").strip()
+        link = f"https://t.me/{username}" if username else item.get("title", "")
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(link)
+            self._log(f"Link copied: {link}")
+        except Exception:
+            pass
+
+    def _run_grup_scrapper_search(self) -> None:
+        query = self.grup_scrapper_query.get().strip()
+        password = self.grup_scrapper_password.get().strip()
+        if not query:
+            messagebox.showwarning("Input", "Keyword tidak boleh kosong")
+            return
+        if not password:
+            messagebox.showwarning("Input", "Encryption Password wajib diisi")
+            return
+
+        try:
+            limit = int((self.grup_scrapper_limit.get() or "50").strip())
+        except ValueError:
+            messagebox.showwarning("Input", "Limit harus berupa angka")
+            return
+        limit = max(1, min(100, limit))
+
+        type_filter = self.grup_scrapper_type.get()
+        skip_scam = bool(self.grup_scrapper_skip_scam.get()) if hasattr(self, "grup_scrapper_skip_scam") else True
+
+        async def _job():
+            async def _op(app, _phone: str):
+                return await app.invoke(raw.functions.contacts.Search(q=query, limit=limit))
+
+            result, used_phone = await execute_with_rotation(self.manager, password, _op)
+
+            chats = list(getattr(result, "chats", []) or [])
+            rows: list[dict] = []
+            seen_ids: set[int] = set()
+            for ch in chats:
+                cid = getattr(ch, "id", None)
+                if cid is None or cid in seen_ids:
+                    continue
+                seen_ids.add(cid)
+
+                kind = self._classify_grup_scrapper_chat(ch)
+                if kind is None:
+                    continue
+
+                if type_filter == "Group/Supergroup saja" and kind != "group":
+                    continue
+                if type_filter == "Channel saja" and kind != "channel":
+                    continue
+
+                username = (getattr(ch, "username", None) or "").strip()
+                title = getattr(ch, "title", None) or "(no title)"
+                participants_count = getattr(ch, "participants_count", None)
+                verified = bool(getattr(ch, "verified", False))
+                scam = bool(getattr(ch, "scam", False)) or bool(getattr(ch, "fake", False))
+                joined = not bool(getattr(ch, "left", True))
+                access_hash = getattr(ch, "access_hash", None)
+
+                if joined:
+                    status = "Joined"
+                elif scam:
+                    status = "Scam/Fake"
+                else:
+                    status = "Belum join"
+
+                rows.append(
+                    {
+                        "id": str(cid),
+                        "raw_id": int(cid),
+                        "access_hash": access_hash,
+                        "title": title,
+                        "type": kind,
+                        "username": username,
+                        "members": participants_count if isinstance(participants_count, int) else None,
+                        "verified": verified,
+                        "scam": scam,
+                        "joined": joined,
+                        "skip_scam": skip_scam,
+                        "status": status,
+                        "_class": type(ch).__name__,
+                    }
+                )
+
+            rows.sort(
+                key=lambda r: (
+                    0 if r["type"] == "group" else 1,
+                    -(r.get("members") or 0),
+                    r["title"].lower(),
+                )
+            )
+
+            self._post(lambda r=rows, p=used_phone, q=query: self._set_grup_scrapper_results(r, p, q))
+            self._post(
+                lambda n=len(rows), q=query: self._log(
+                    f"Grup Scrapper: ditemukan {n} grup/channel publik untuk '{q}'"
+                )
+            )
+
+        self._run_async_job(_job())
+
+    def _fetch_grup_scrapper_stats(self) -> None:
+        password = self.grup_scrapper_password.get().strip()
+        if not password:
+            messagebox.showwarning("Input", "Encryption Password wajib diisi")
+            return
+
+        if not self.grup_scrapper_results:
+            messagebox.showinfo("Stats", "Belum ada hasil pencarian")
+            return
+
+        pending = [
+            r for r in self.grup_scrapper_results
+            if r.get("members") is None and (r.get("username") or "").strip()
+        ]
+        if not pending:
+            messagebox.showinfo("Stats", "Semua item sudah punya member count")
+            return
+
+        async def _job():
+            async def _op(app, _phone: str):
+                for it in pending:
+                    try:
+                        chat = await app.get_chat(it["username"])
+                        members_count = getattr(chat, "members_count", None)
+                        if isinstance(members_count, int):
+                            it["members"] = members_count
+                            self._post(lambda x=it: self._refresh_grup_scrapper_row(x))
+                    except Exception as exc:
+                        self._post(
+                            lambda t=it["title"], e=exc: self._log(
+                                f"Get stats {t} gagal: {type(e).__name__}: {e}"
+                            )
+                        )
+                    await asyncio.sleep(0.4)
+                return True
+
+            await execute_with_rotation(self.manager, password, _op)
+            self._post(lambda: self._log("Fetch member counts selesai"))
+
+        self._run_async_job(_job())
+
+    def _run_grup_scrapper_join(self, only_selected: bool) -> None:
+        password = self.grup_scrapper_password.get().strip()
+        if not password:
+            messagebox.showwarning("Input", "Encryption Password wajib diisi")
+            return
+
+        if not self.grup_scrapper_results:
+            messagebox.showinfo("Join", "Belum ada hasil pencarian")
+            return
+
+        if only_selected:
+            sel_iids = self.grup_scrapper_tree.selection()
+            if not sel_iids:
+                messagebox.showinfo("Join", "Tidak ada item yang dipilih di tabel")
+                return
+            targets = [self._grup_scrapper_index_by_iid[i] for i in sel_iids if i in self._grup_scrapper_index_by_iid]
+        else:
+            targets = list(self.grup_scrapper_results)
+
+        skip_scam = bool(self.grup_scrapper_skip_scam.get()) if hasattr(self, "grup_scrapper_skip_scam") else True
+
+        targets = [
+            t for t in targets
+            if not t.get("joined") and (t.get("username") or "").strip() and not (skip_scam and t.get("scam"))
+        ]
+        if not targets:
+            messagebox.showinfo(
+                "Join",
+                "Tidak ada target yang bisa di-join (semua sudah join, tanpa username publik, atau di-skip karena scam).",
+            )
+            return
+
+        try:
+            delay_min = float((self.grup_scrapper_delay_min.get() or "5").strip())
+            delay_max = float((self.grup_scrapper_delay_max.get() or "15").strip())
+        except ValueError:
+            messagebox.showwarning("Input", "Delay min/max harus berupa angka")
+            return
+        if delay_min < 0 or delay_max < delay_min:
+            messagebox.showwarning("Input", "Delay tidak valid. min >= 0 dan min <= max")
+            return
+
+        if not messagebox.askyesno(
+            "Konfirmasi Join",
+            f"Akan join {len(targets)} grup/channel dengan delay random {delay_min:.1f}-{delay_max:.1f} detik. Lanjutkan?",
+        ):
+            return
+
+        async def _job():
+            joined_count = 0
+            failed_count = 0
+            total = len(targets)
+
+            for idx, item in enumerate(targets):
+                username = (item.get("username") or "").strip()
+                title = item.get("title", "")
+                if not username:
+                    failed_count += 1
+                    item["status"] = "Skip: tanpa username"
+                    self._post(lambda it=item: self._refresh_grup_scrapper_row(it))
+                    continue
+
+                link = f"@{username}"
+
+                try:
+                    async def _op(app, _phone: str, _link=link):
+                        try:
+                            await app.join_chat(_link)
+                        except Exception as exc:
+                            err = (str(exc) or "").upper()
+                            if "USER_ALREADY_PARTICIPANT" in err or "ALREADY_PARTICIPANT" in err:
+                                return True
+                            raise
+                        return True
+
+                    _, used_phone = await execute_with_rotation(self.manager, password, _op)
+                    joined_count += 1
+                    item["joined"] = True
+                    item["status"] = "Joined"
+                    self._post(lambda it=item: self._refresh_grup_scrapper_row(it))
+                    self._post(
+                        lambda t=title, p=used_phone, n=idx + 1, tot=total: self._log(
+                            f"[Grup Scrapper] Joined {t} via {p} ({n}/{tot})"
+                        )
+                    )
+                except Exception as exc:
+                    failed_count += 1
+                    err_text = f"{type(exc).__name__}: {exc}"
+                    item["status"] = f"Failed: {err_text[:60]}"
+                    self._post(lambda it=item: self._refresh_grup_scrapper_row(it))
+                    self._post(
+                        lambda t=title, e=err_text: self._log(f"[Grup Scrapper] Join {t} gagal: {e}")
+                    )
+
+                if idx < total - 1:
+                    d = random_delay(delay_min, delay_max)
+                    self._post(lambda d=d: self._log(f"[Grup Scrapper] Sleep {d:.1f}s sebelum join berikutnya"))
+                    await asyncio.sleep(d)
+
+            summary = f"Grup Scrapper join selesai: ok={joined_count}, gagal={failed_count}, total={total}"
+            self._post(lambda s=summary: self._log(s))
+            self._post(lambda s=summary: messagebox.showinfo("Join Result", s))
+
+        self._run_async_job(_job())
+
+    def _export_grup_scrapper_csv(self) -> None:
+        if not self.grup_scrapper_results:
+            messagebox.showinfo("Export", "Belum ada hasil untuk diekspor")
+            return
+
+        path = filedialog.asksaveasfilename(
+            title="Save Grup Scrapper CSV",
+            defaultextension=".csv",
+            filetypes=[("CSV", "*.csv"), ("All files", "*.*")],
+            initialfile="grup_scrapper.csv",
+        )
+        if not path:
+            return
+
+        import csv as _csv
+        headers = ["Title", "Type", "Username", "Link", "Members", "Status", "Verified", "Scam", "ID"]
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                writer = _csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                for r in self.grup_scrapper_results:
+                    username = (r.get("username") or "").strip()
+                    link = f"https://t.me/{username}" if username else ""
+                    writer.writerow(
+                        {
+                            "Title": r.get("title", ""),
+                            "Type": r.get("type", ""),
+                            "Username": username,
+                            "Link": link,
+                            "Members": r.get("members") if isinstance(r.get("members"), int) else "",
+                            "Status": r.get("status", ""),
+                            "Verified": "yes" if r.get("verified") else "",
+                            "Scam": "yes" if r.get("scam") else "",
+                            "ID": r.get("id", ""),
+                        }
+                    )
+            messagebox.showinfo("Export", f"Saved {len(self.grup_scrapper_results)} rows to {path}")
+            self._log(f"Grup Scrapper CSV saved to {path}")
+        except Exception as exc:
+            messagebox.showerror("Export", f"Gagal menyimpan: {exc}")
 
     def _browse_md(self) -> None:
         path = filedialog.askopenfilename(
