@@ -11,12 +11,42 @@ from funcs.options_handlers.broadcast_message import handle_broadcast
 from funcs.options_handlers.login import handle_login
 from funcs.options_handlers.manage_sessions import handle_manage_sessions
 from funcs.options_handlers.scrape_members import handle_scrape
-from funcs.ui import error, info, show_header, show_main_menu
+from funcs.ui import error, info, show_header, show_main_menu, success, warn
+import license_manager
 from logger import setup_logger
 from utils import ensure_paths, normalize_menu_choice
 
 
+def require_license_cli() -> bool:
+    startup = license_manager.check_license_on_startup()
+    if startup.valid:
+        summary = license_manager.format_license_summary(startup.info)
+        success("Lisensi aktif" + (f": {summary}" if summary else ""))
+        return True
+
+    info("Aplikasi ini memerlukan lisensi aktif dari vibetool.id")
+    if startup.error not in (None, "no_saved_license"):
+        warn(startup.message)
+
+    while True:
+        raw = Prompt.ask("Masukkan kunci lisensi (atau ketik 'q' untuk keluar)").strip()
+        if raw.lower() in {"q", "quit", "exit", ""}:
+            return False
+
+        result = license_manager.activate_license(raw)
+        if result.valid:
+            summary = license_manager.format_license_summary(result.info)
+            success("Lisensi valid" + (f": {summary}" if summary else ""))
+            return True
+
+        error(result.message)
+
+
 async def app_main() -> None:
+    if not require_license_cli():
+        info("Lisensi belum aktif. Keluar.")
+        return
+
     try:
         config = Config.from_env()
     except Exception as exc:
