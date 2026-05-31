@@ -3,7 +3,6 @@ from pathlib import Path
 
 from rich.prompt import Prompt
 
-import license_manager
 from account_manager import AccountManager
 from configs import Config
 from funcs.options_handlers.about import show_about
@@ -13,6 +12,7 @@ from funcs.options_handlers.login import handle_login
 from funcs.options_handlers.manage_sessions import handle_manage_sessions
 from funcs.options_handlers.scrape_members import handle_scrape
 from funcs.ui import error, info, show_header, show_main_menu, success, warn
+import license_manager
 from logger import setup_logger
 from utils import ensure_paths, normalize_menu_choice
 
@@ -44,7 +44,7 @@ def require_license_cli() -> bool:
 
 async def app_main() -> None:
     if not require_license_cli():
-        info("Keluar: lisensi tidak diaktifkan.")
+        info("Lisensi belum aktif. Keluar.")
         return
 
     try:

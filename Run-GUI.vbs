@@ -1,32 +1,41 @@
 Option Explicit
 
-Dim fso, shell, scriptDir, projectDir, parentDir
-Dim pywCandidates(2), pywPath, i
-Dim cmd
+' Silent launcher untuk Run-GUI.bat. Cocok dipakai sebagai shortcut di
+' Desktop / taskbar supaya GUI jalan tanpa jendela CMD.
+'
+' Catatan:
+' - Saat first run (venv belum ada / .env belum ada / dependencies belum
+'   terinstall), launcher otomatis fall back ke Run-GUI.bat dengan jendela
+'   CMD terlihat agar user bisa baca pesan & isi API_ID / API_HASH.
+' - Begitu setup beres, klik file ini untuk run silent dengan pythonw.
+
+Dim fso, shell, scriptDir, batPath, envPath, venvLocal, venvParent
+Dim pywPath, cmd
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-projectDir = scriptDir
-parentDir = fso.GetParentFolderName(projectDir)
+batPath  = scriptDir & "\Run-GUI.bat"
+envPath  = scriptDir & "\.env"
+venvLocal  = scriptDir & "\.venv\Scripts\pythonw.exe"
+venvParent = fso.GetParentFolderName(scriptDir) & "\.venv\Scripts\pythonw.exe"
 
-pywCandidates(0) = projectDir & "\\.venv\\Scripts\\pythonw.exe"
-pywCandidates(1) = parentDir & "\\.venv\\Scripts\\pythonw.exe"
-pywCandidates(2) = "pythonw.exe"
+' Jika setup belum lengkap, jalankan .bat (visible) supaya user bisa interact.
+If (Not fso.FileExists(envPath)) Or _
+   ((Not fso.FileExists(venvLocal)) And (Not fso.FileExists(venvParent))) Then
+    shell.Run """" & batPath & """", 1, False
+    WScript.Quit
+End If
 
-pywPath = ""
-For i = 0 To 2
-    If i = 2 Then
-        pywPath = pywCandidates(i)
-        Exit For
-    End If
-    If fso.FileExists(pywCandidates(i)) Then
-        pywPath = pywCandidates(i)
-        Exit For
-    End If
-Next
+' Setup beres -> run silent dengan pythonw langsung.
+If fso.FileExists(venvLocal) Then
+    pywPath = venvLocal
+ElseIf fso.FileExists(venvParent) Then
+    pywPath = venvParent
+Else
+    pywPath = "pythonw.exe"
+End If
 
-cmd = "cmd /c cd /d """ & projectDir & """ && """ & pywPath & """ ""gui_app.py"""
-
+cmd = "cmd /c cd /d """ & scriptDir & """ && """ & pywPath & """ ""gui_app.py"""
 shell.Run cmd, 0, False
