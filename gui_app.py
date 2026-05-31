@@ -22,6 +22,7 @@ from pyrogram.types import InputMediaDocument, InputMediaPhoto, InputMediaVideo
 from account_manager import AccountManager
 from configs import Config
 from funcs.helpers import execute_with_rotation, load_checkpoint, resolve_target_chat, save_checkpoint, save_session_string
+from license_dialog import ensure_licensed
 from funcs.qr_auth import show_qr_and_wait_login
 from utils import (
     append_members_dedup,
@@ -5577,6 +5578,13 @@ def _prompt_api_credentials(parent: tk.Tk) -> bool:
 
 def main() -> None:
     root = tk.Tk()
+    root.withdraw()
+
+    if not ensure_licensed(root):
+        root.destroy()
+        return
+
+    root.deiconify()
     # Try to start. If env credentials missing, prompt once and retry.
     for _attempt in range(2):
         try:

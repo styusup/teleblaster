@@ -9,6 +9,7 @@ Hasil Scrape Member/
 scrape_checkpoint.json
 account_cooldowns.json
 qr_login.png
+license.json
 
 # PyInstaller build artefak
 build/
