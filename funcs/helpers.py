@@ -121,27 +121,47 @@ async def resolve_target_chat(app, raw_target: str):
     for candidate in [target, raw_target.strip()]:
         if not candidate:
             continue
+        candidate_str = str(candidate).strip()
+        if not candidate_str:
+            continue
         numeric_candidate = None
-        if candidate.lstrip("-").isdigit():
-            numeric_candidate = str(int(candidate))
-            candidate = int(candidate)
+        if candidate_str.lstrip("-").isdigit():
+            numeric_candidate = str(int(candidate_str))
+            candidate = int(candidate_str)
+        else:
+            candidate = candidate_str
+
         try:
             return await app.get_chat(candidate)
         except Exception as exc:
             last_exc = exc
 
-            # Fallback for numeric IDs: match against joined dialogs.
-            if numeric_candidate is not None:
-                try:
-                    async for dialog in app.get_dialogs():
-                        chat = getattr(dialog, "chat", None)
-                        if not chat:
-                            continue
-                        if str(chat.id) == numeric_candidate:
+            # Fallback ke dialog scan: cocokkan ID numerik atau username.
+            # Berguna saat akun sudah join grup tapi internal username cache
+            # Pyrogram belum populated, sehingga get_chat(username) lempar error.
+            try:
+                want_username = (
+                    None
+                    if numeric_candidate is not None
+                    else candidate_str.lstrip("@").lower()
+                )
+                async for dialog in app.get_dialogs():
+                    chat = getattr(dialog, "chat", None)
+                    if not chat:
+                        continue
+                    if numeric_candidate is not None and str(chat.id) == numeric_candidate:
+                        return chat
+                    if want_username:
+                        chat_username = (getattr(chat, "username", None) or "").lower()
+                        if chat_username and chat_username == want_username:
                             return chat
-                except Exception as exc2:
-                    last_exc = exc2
+            except Exception as exc2:
+                last_exc = exc2
 
+    detail = ""
+    if last_exc is not None:
+        detail = f" (root cause: {type(last_exc).__name__}: {last_exc})"
     raise RuntimeError(
-        "Group/link tidak valid. Gunakan @username, https://t.me/username, atau invite link https://t.me/+xxxx"
+        "Group/link tidak valid. Gunakan @username, https://t.me/username, "
+        f"atau invite link https://t.me/+xxxx{detail}"
     ) from last_exc
