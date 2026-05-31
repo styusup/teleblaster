@@ -1,5 +1,8 @@
 pyrogram>=2.0.106
-TgCrypto>=1.2.5
+# TgCrypto-pyrofork menyediakan modul `tgcrypto` yang sama seperti TgCrypto,
+# tapi punya prebuilt wheel untuk Python 3.11/3.12/3.13 (Windows/Linux/Mac)
+# sehingga build tidak butuh Microsoft C++ Build Tools / compiler.
+TgCrypto-pyrofork>=1.2.8
 rich>=13.7.0
 python-dotenv>=1.0.1
 cryptography>=42.0.8
