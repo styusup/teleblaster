@@ -11,8 +11,8 @@ echo.
 echo Skrip ini akan:
 echo   1. Pastikan venv + dependency terinstall
 echo   2. Install PyInstaller jika belum
-echo   3. Build aplikasi jadi folder portable
-echo   4. Copy hasilnya ke folder "Distribusi\TelegramBlaster"
+echo   3. Build aplikasi jadi SATU file .exe (one-file)
+echo   4. Copy "TelegramBlaster.exe" ke folder "Distribusi"
 echo   5. Buat ZIP "Distribusi\TelegramBlaster.zip" siap kirim
 echo.
 
@@ -51,10 +51,15 @@ echo [INFO] Install PyInstaller ...
 if errorlevel 1 goto :pyi_install_failed
 
 REM ============================================================
-REM 4. Cek .env wajib ada (akan di-embed ke distribusi)
+REM 4. .env opsional. Kalau ada, di-embed supaya client tidak perlu isi
+REM    API_ID/API_HASH. Kalau tidak ada, aplikasi akan minta sekali saat
+REM    pertama dijalankan lewat dialog GUI bawaan.
 REM ============================================================
-if not exist ".env" goto :env_missing
-echo [INFO] .env terdeteksi, akan di-embed ke distribusi.
+if exist ".env" (
+    echo [INFO] .env terdeteksi, akan di-embed ke distribusi.
+) else (
+    echo [INFO] .env tidak ada - aplikasi akan minta API_ID/API_HASH saat first run.
+)
 
 REM ============================================================
 REM 5. Bersihkan build lama
@@ -62,7 +67,7 @@ REM ============================================================
 echo [INFO] Bersihkan build lama ...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist Distribusi\TelegramBlaster rmdir /s /q Distribusi\TelegramBlaster
+if exist Distribusi\TelegramBlaster.exe del /q Distribusi\TelegramBlaster.exe
 if exist Distribusi\TelegramBlaster.zip del /q Distribusi\TelegramBlaster.zip
 
 REM ============================================================
@@ -72,33 +77,36 @@ echo [INFO] Build dengan PyInstaller (bisa 1-3 menit) ...
 "%PYEXE%" -m PyInstaller teleblaster.spec --noconfirm
 if errorlevel 1 goto :pyi_build_failed
 
-if not exist "dist\TelegramBlaster\TelegramBlaster.exe" goto :no_exe
+if not exist "dist\TelegramBlaster.exe" goto :no_exe
 
 REM ============================================================
-REM 7. Copy ke folder Distribusi + sertakan README untuk client
+REM 7. Copy .exe ke folder Distribusi + sertakan README untuk client
 REM ============================================================
 if not exist Distribusi mkdir Distribusi
-echo [INFO] Copy hasil build ke Distribusi\TelegramBlaster ...
-xcopy /e /i /q /y "dist\TelegramBlaster" "Distribusi\TelegramBlaster" >nul
-if exist "Distribusi\README-CLIENT.txt" copy /y "Distribusi\README-CLIENT.txt" "Distribusi\TelegramBlaster\README.txt" >nul
+echo [INFO] Copy TelegramBlaster.exe ke Distribusi ...
+copy /y "dist\TelegramBlaster.exe" "Distribusi\TelegramBlaster.exe" >nul
 
 REM ============================================================
-REM 8. ZIP folder hasil supaya gampang dikirim
+REM 8. ZIP .exe (+ README bila ada) supaya gampang dikirim
 REM ============================================================
 echo [INFO] Membuat ZIP Distribusi\TelegramBlaster.zip ...
-powershell -NoProfile -Command "Compress-Archive -Path 'Distribusi\TelegramBlaster\*' -DestinationPath 'Distribusi\TelegramBlaster.zip' -Force"
-if errorlevel 1 echo [WARNING] Gagal buat ZIP, folder tetap tersedia.
+if exist "Distribusi\README-CLIENT.txt" (
+    powershell -NoProfile -Command "Compress-Archive -Path 'Distribusi\TelegramBlaster.exe','Distribusi\README-CLIENT.txt' -DestinationPath 'Distribusi\TelegramBlaster.zip' -Force"
+) else (
+    powershell -NoProfile -Command "Compress-Archive -Path 'Distribusi\TelegramBlaster.exe' -DestinationPath 'Distribusi\TelegramBlaster.zip' -Force"
+)
+if errorlevel 1 echo [WARNING] Gagal buat ZIP, .exe tetap tersedia.
 
 echo.
 echo ============================================================
 echo   BUILD SELESAI
 echo ============================================================
 echo.
-echo Folder portable :  Distribusi\TelegramBlaster\
+echo File EXE tunggal  :  Distribusi\TelegramBlaster.exe
 echo File ZIP siap kirim:  Distribusi\TelegramBlaster.zip
 echo.
 echo Cara test sebelum kirim ke client:
-echo   1. Buka Distribusi\TelegramBlaster
+echo   1. Buka folder Distribusi
 echo   2. Double-click TelegramBlaster.exe
 echo   3. Pastikan GUI muncul dan login bisa berjalan
 echo.
@@ -140,27 +148,6 @@ echo.
 pause
 exit /b 1
 
-:env_missing
-echo.
-echo [ERROR] File .env tidak ditemukan di folder ini.
-echo.
-echo Build dihentikan karena distribusi WAJIB punya .env yang berisi
-echo API_ID dan API_HASH. Tanpa itu, client harus mengisi credential
-echo sendiri, dan itu bertentangan dengan tujuan distribusi siap pakai.
-echo.
-echo CARA FIX:
-echo   1. Buka https://my.telegram.org/apps di browser, login dengan
-echo      nomor Telegram Anda.
-echo   2. Buka bagian App configuration. Catat App api_id berupa angka
-echo      dan App api_hash berupa string panjang.
-echo   3. Buat file .env di folder ini berisi:
-echo          API_ID=12345678
-echo          API_HASH=0123456789abcdef0123456789abcdef
-echo   4. Jalankan ulang build_distribusi.bat
-echo.
-pause
-exit /b 1
-
 :pyi_build_failed
 echo.
 echo [ERROR] PyInstaller gagal melakukan build.
@@ -172,7 +159,7 @@ exit /b 1
 :no_exe
 echo.
 echo [ERROR] Output build tidak ditemukan di
-echo   dist\TelegramBlaster\TelegramBlaster.exe
+echo   dist\TelegramBlaster.exe
 echo PyInstaller mungkin gagal silent. Coba ulang skrip.
 echo.
 pause

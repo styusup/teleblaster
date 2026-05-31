@@ -1,8 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
 PyInstaller spec untuk membundel Telegram Blaster By VibeTool.Club menjadi
-distribusi portable (one-folder). Hasilnya akan dipindah ke folder Distribusi/
-oleh build_distribusi.bat / build_distribusi.sh.
+distribusi portable SINGLE-FILE (one-file .exe). Hasilnya adalah satu file
+`dist/TelegramBlaster.exe` yang akan dibungkus ZIP oleh build_distribusi.bat /
+build_distribusi.sh — client cukup download, extract, double-click, jalan.
 
 Build:
     pyinstaller teleblaster.spec --noconfirm
@@ -94,21 +95,17 @@ exe_kwargs = dict(
 if icon_path.exists():
     exe_kwargs["icon"] = str(icon_path)
 
+# One-file build: bundle semua binaries + data ke dalam satu .exe.
+# runtime_tmpdir=None → di-extract ke %TEMP% saat run (default), tidak perlu
+# folder pendamping.
 exe = EXE(
     pyz,
     a.scripts,
-    [],
-    exclude_binaries=True,
-    **exe_kwargs,
-)
-
-coll = COLLECT(
-    exe,
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    name="TelegramBlaster",
+    [],
+    exclude_binaries=False,
+    runtime_tmpdir=None,
+    **exe_kwargs,
 )

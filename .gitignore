@@ -18,5 +18,6 @@ dist/
 
 # Distribusi: hanya commit README + .gitkeep, output build di-ignore
 Distribusi/TelegramBlaster/
+Distribusi/TelegramBlaster.exe
 Distribusi/TelegramBlaster.zip
 Distribusi/TelegramBlaster.tar.gz

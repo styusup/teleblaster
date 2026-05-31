@@ -23,16 +23,16 @@ rm -rf build dist Distribusi/TelegramBlaster Distribusi/TelegramBlaster.tar.gz
 
 pyinstaller teleblaster.spec --noconfirm
 
-if [[ ! -f "dist/TelegramBlaster/TelegramBlaster" ]]; then
+# One-file build menghasilkan satu file executable (tanpa ekstensi di Linux).
+if [[ ! -f "dist/TelegramBlaster" ]]; then
     echo "[ERROR] Output tidak ditemukan." >&2
     exit 1
 fi
 
 mkdir -p Distribusi
-cp -r dist/TelegramBlaster Distribusi/TelegramBlaster
-cp -f Distribusi/README-CLIENT.txt Distribusi/TelegramBlaster/README.txt 2>/dev/null || true
+cp -f dist/TelegramBlaster Distribusi/TelegramBlaster
 
 (cd Distribusi && tar -czf TelegramBlaster.tar.gz TelegramBlaster)
 
-echo "[OK] Folder portable: Distribusi/TelegramBlaster/"
-echo "[OK] Tarball       : Distribusi/TelegramBlaster.tar.gz"
+echo "[OK] File tunggal : Distribusi/TelegramBlaster"
+echo "[OK] Tarball      : Distribusi/TelegramBlaster.tar.gz"
