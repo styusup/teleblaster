@@ -22,6 +22,7 @@ from account_manager import AccountManager
 from configs import Config
 from funcs.helpers import execute_with_rotation, load_checkpoint, resolve_target_chat, save_checkpoint, save_session_string
 from funcs.qr_auth import show_qr_and_wait_login
+from license_dialog import ensure_licensed
 from utils import append_members_dedup, ensure_paths, mask_phone, normalize_chat_target, random_delay, read_members_csv, write_members_csv_atomic
 
 
@@ -2624,6 +2625,13 @@ class TelegramScraperGUI:
 
 def main() -> None:
     root = tk.Tk()
+    root.withdraw()
+
+    if not ensure_licensed(root):
+        root.destroy()
+        return
+
+    root.deiconify()
     try:
         TelegramScraperGUI(root)
     except Exception as exc:
